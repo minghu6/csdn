@@ -8,6 +8,8 @@ second_author: minghu6
 import re
 import os
 import sys
+from collections import namedtuple
+import csv
 import chilkat
 from docopt import docopt
 
@@ -18,7 +20,7 @@ Usage:
   csdn <username> bakeup [--outdir=<outdir>]
 
 Options:
-  <username>            userid or useremail
+  <username>            userid
   -o --outdir=<outdir>  output directory of bake file [default: .]
 
 """
@@ -46,20 +48,24 @@ tail_string="""
 
 iter_count=0
 
+url_name_tuple = namedtuple('url_name_tuple', ['url', 'title'])
+url_name_tuple_set = set()
 
-def extractBlogLists(user_name='lanbing510',loop_times=1000):
-    url="http://blog.csdn.net/%s/" % user_name
+async def extract_blog_list(username='minghu9', loop_times=1000):
+
+    url="http://blog.csdn.net/%s/" % username
     spider=chilkat.CkSpider()
     spider.Initialize(url)
-    pattern=user_name+'/article/details'
-    file_path='URList-'+user_name+'.txt'
-    f=open(file_path,'w')
+    pattern=username+'/article/details'
+    file_path='URList-'+username+'.txt'
+    f=open(file_path, 'w')
+    csvwriter = csv.writer(f, delimiter=' ')
     url_count=0
-    for i in range(0,loop_times):
+    for i in range(0, loop_times):
         success = spider.CrawlNext()
         if (success == True):
             url=spider.lastUrl()
-            m=re.search(pattern,url)
+            m=re.search(pattern, url)
             if not m:
                 continue
             url_count+=1
@@ -73,7 +79,9 @@ def extractBlogLists(user_name='lanbing510',loop_times=1000):
             title=title.replace('?',' ')
             title=title.replace('|',' ')
             title=title.replace('#','sharp')
-            f.write(url+","+title+'\n')
+
+            csvwriter(f, url_name_tuple(url, title))
+            url_name_tuple_set.add(url_name_tuple(url, title))
             #Print The HTML META title
             #print(spider.lastHtmlTitle().decode('gbk'))
         else:
@@ -83,10 +91,11 @@ def extractBlogLists(user_name='lanbing510',loop_times=1000):
             else:
                 print(spider.lastErrorText())
         #Sleep 1 second before spidering the next URL.
-        spider.SleepMs(1000)
+        #spider.SleepMs(1000)
     f.close()
     #对生产的文件进行备份
-    open('URList-'+user_name+'-backup.txt', "w").write(open(file_path, "r").read())
+    with open('URList-'+username+'-backup.txt', "w") as fw:
+        fw.write(open(file_path, "r").read())
 
 
 def downloadBlogLists(user_name='lanbing510'):
@@ -121,7 +130,7 @@ def downloadBlogLists(user_name='lanbing510'):
             #print(mht.lastErrorText())
             fout.write(line)
         else:
-            print(("Successfully Downloaded "+title.decode('gbk')))
+            print(("Successfully Downloaded "+title))
     f.close()
     fout.close()
     if iter_count>=5:
@@ -146,7 +155,6 @@ def generateIndex(user_name='lanbing510'):
     for line in f.readlines():
         m=re.search('(http.+[0-9]{7,}),(.+)',line)
         title=m.group(2)
-        title=title.decode('gbk').encode('utf-8')
         print(title)
         fout.write("""<li><a href=\""""+title+".html"+"""\">"""+title+"""</a></li>\n""")
     fout.write("""</ol>""")
@@ -155,8 +163,8 @@ def generateIndex(user_name='lanbing510'):
     fout.close()
 
 def main(username):
-    print("Start Extracting  Blog List...")
-    extractBlogLists(username)
+    print("Start Extracting Blog List...")
+    extract_blog_list(username)
     print("Start Downloading Blog List...")
     downloadBlogLists(username)
     print("Start Generating Index.html...")
