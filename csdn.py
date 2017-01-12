@@ -5,12 +5,14 @@ csdn
 
 Usage:
   csdn <username> offline [--outdir=<outdir>] [--proxy_db=<proxy_db>]
+  csdn <username> fetch-page-list [--proxy_db=<proxy_db>]
 
 Options:
   <username>             userid
   -o --outdir=<outdir>   output directory of bake file [default: .]
   --proxy_db=<proxy_db>  point a proxy_db path(use minghu6.tools.proxy_ip
-                                               to create.)
+                                              to create.)
+  fetch-page-list        only fetch the url-title page list
 
 """
 import re
@@ -55,7 +57,7 @@ html_num = None
 url_name_tuple_set = set()
 UrlNameTuple = namedtuple('UrlNameTuple', ['url', 'title'])
 def fetch_url_title(username, proxy_db=None):
-
+    print("Start Extracting Blog List...")
     url="http://blog.csdn.net/%s/article" % username
 
     try:
@@ -173,7 +175,7 @@ def generate_index(username='minghu9'):
 
 
 def main(username, proxy_db=None):
-    print("Start Extracting Blog List...")
+
     fetch_url_title(username, proxy_db)
     print("Start Downloading Blog List...")
     download(username)
@@ -190,9 +192,18 @@ def interactive():
         if arguments['--proxy_db'] != None:
             proxy_db = None
         else:
-            proxy_db = arguments['--proxy-db']
+            proxy_db = arguments['--proxy_db']
 
         main(username=username, proxy_db=proxy_db)
+    elif arguments['fetch-page-list']:
+        username = arguments['<username>']
+        #print(arguments['--outdir'], username)
+        if arguments['--proxy_db'] != None:
+            proxy_db = None
+        else:
+            proxy_db = arguments['--proxy_db']
+
+        fetch_url_title(username, proxy_db)
 
 if __name__=='__main__':
     interactive()

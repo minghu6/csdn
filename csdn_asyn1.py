@@ -74,6 +74,11 @@ class AsyncIteratorWrapper:
             raise StopAsyncIteration
         return value
 
+async def fetch(session, url):
+        with async_timeout.timeout(20):
+            async with session.get(url) as response:
+                return await response.read()
+
 async def fetch_url_title(username, loop, proxy_db=None):
     print("Start Extracting Blog List...")
 
@@ -120,11 +125,6 @@ async def fetch_url_title(username, loop, proxy_db=None):
             #print(url_name_tuple)
             url_name_tuple_set.add(url_name_tuple)
             csvwriter.writerow(url_name_tuple) # web io is much slower than local io
-
-    async def fetch(session, url):
-        with async_timeout.timeout(20):
-            async with session.get(url) as response:
-                return await response.read()
 
     add_and_write(bsObj, url_name_tuple_set, csvwriter)
     async for i in AsyncIteratorWrapper(range(2, page_num+1)):
