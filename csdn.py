@@ -23,6 +23,7 @@ from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 from minghu6.http.request import headers
 from minghu6.text.seq_enh import filter_invalid_char
+from minghu6.text.seq_enh import INVALID_FILE_CHAR_SET
 from minghu6.internet.proxy_ip import proxy_ip
 from minghu6.algs.decorator import singleton
 from urllib.request import Request, urlopen
@@ -49,7 +50,7 @@ def char_escape(s:str, escape_charset, escape_char_type:str):
     return s
 
 def htmltitle2path(htmltitle, escape_char_type='url'):
-    path=char_escape(htmltitle, {':', '|', '?', '>', '<', '=', '"', '/', ' '}, escape_char_type)
+    path=char_escape(htmltitle, INVALID_FILE_CHAR_SET, escape_char_type)
     path = ''.join(re.split('\s+', path)) # in case other blank char
     return path
 

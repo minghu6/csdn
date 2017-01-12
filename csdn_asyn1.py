@@ -16,21 +16,27 @@ Options:
 
 """
 import asyncio
-import aiohttp
-import async_timeout
-
+from itertools import repeat
 import re
 import os
+import sys
 from collections import namedtuple
 import csv
+from urllib.request import Request, urlopen
+import signal
+
+import aiohttp
+import async_timeout
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 from minghu6.http.request import headers
 from minghu6.text.seq_enh import filter_invalid_char
 from minghu6.internet.proxy_ip import proxy_ip
 from minghu6.algs.decorator import singleton
-from urllib.request import Request, urlopen
+from minghu6.text.seq_enh import INVALID_FILE_CHAR_SET
 from docopt import docopt
+
+
 
 URL_LIST_FILE_PATH = 'URList-{username:s}.txt'
 
@@ -53,7 +59,8 @@ def char_escape(s:str, escape_charset, escape_char_type:str):
     return s
 
 def htmltitle2path(htmltitle, escape_char_type='url'):
-    path=char_escape(htmltitle, {':', '|', '?', '>', '<', '=', '"', '/', ' '}, escape_char_type)
+
+    path=char_escape(htmltitle, INVALID_FILE_CHAR_SET, escape_char_type)
     path = ''.join(re.split('\s+', path)) # in case other blank char
     return path
 
@@ -80,6 +87,7 @@ async def fetch(session, url):
                 return await response.read()
 
 async def fetch_url_title(username, loop, proxy_db=None):
+
     print("Start Extracting Blog List...")
 
     url="http://blog.csdn.net/%s/article" % username
@@ -127,13 +135,11 @@ async def fetch_url_title(username, loop, proxy_db=None):
             csvwriter.writerow(url_name_tuple) # web io is much slower than local io
 
     add_and_write(bsObj, url_name_tuple_set, csvwriter)
+    session = aiohttp.ClientSession(loop=loop, headers=headers)
     async for i in AsyncIteratorWrapper(range(2, page_num+1)):
+
         next_page_url = 'http://blog.csdn.net/{0}/article/list/{1}'.format(username, i)
-
-        #response=urlopen(Request(next_page_url, headers=headers))
-
-        async with aiohttp.ClientSession(loop=loop, headers=headers) as session:
-            content = await fetch(session, next_page_url)
+        content = await fetch(session, next_page_url)
 
         #html = ''.join(list(response.read()))
         bsObj = BeautifulSoup(content, 'html.parser')
@@ -141,15 +147,18 @@ async def fetch_url_title(username, loop, proxy_db=None):
         add_and_write(bsObj, url_name_tuple_set, csvwriter)
 
     csvfw.close()
+    session.close()
 
 
-def download(username='minghu9'):
+async def download(username, loop):
+    print("Start Downloading Blog List...")
     dirname = 'CSDN-'+username
     if not os.path.exists(dirname):
         os.mkdir(dirname)
     n = html_num
     print('total {0:d} items'.format(n))
-    while True:
+    session = aiohttp.ClientSession(loop=loop, headers=headers)
+    async for i in AsyncIteratorWrapper(repeat(0)):
         if n == 0:
             break
         try:
@@ -159,12 +168,14 @@ def download(username='minghu9'):
             pass
         else:
             path = os.path.join(dirname, htmltitle2path(url_name.title)+'.html')
-            response=urlopen(Request(url=url_name.url, headers=headers))
+            content = await fetch(session, url_name.url)
+
             with open(path, 'wb') as fw:
-                fw.write(response.read())
+                fw.write(content)
 
             print(("Successfully Downloaded "+url_name.title))
 
+    session.close()
 
 index_head_string="""
 <html>
@@ -187,6 +198,7 @@ index_tail_string="""
 </html>
 """
 def generate_index(username='minghu9'):
+    print("Start Generating Index.html...")
     file_path=URL_LIST_FILE_PATH.format(username=username)
     f=open(file_path,'r',encoding='utf-8')
     fout=open('Index_{0}.html'.format(username),'w',encoding='utf-8')
@@ -204,17 +216,6 @@ def generate_index(username='minghu9'):
     fout.close()
 
 
-def main(username, proxy_db=None):
-    loop = asyncio.get_event_loop()
-    print("Start Extracting Blog List...")
-    fetch_url_title(username, loop, proxy_db)
-    loop.run_until_complete(fetch_url_title(username, loop, proxy_db))
-    print("Start Downloading Blog List...")
-    download(username)
-    print("Start Generating Index.html...")
-    generate_index(username)
-    print("Done.")
-
 def interactive():
     arguments = docopt(__doc__)
 
@@ -226,7 +227,17 @@ def interactive():
         else:
             proxy_db = arguments['--proxy_db']
 
-        main(username=username, proxy_db=proxy_db)
+        loop = asyncio.get_event_loop()
+        tasks = [
+            asyncio.ensure_future(fetch_url_title(username,
+                                                  loop,
+                                                  proxy_db)),
+
+            asyncio.ensure_future(download(username,
+                                           loop))
+        ]
+        loop.run_until_complete(asyncio.wait(tasks))
+        generate_index(username)
 
     elif arguments['fetch-page-list']:
         username = arguments['<username>']
@@ -237,7 +248,10 @@ def interactive():
 
 
         loop = asyncio.get_event_loop()
-        loop.run_until_complete(fetch_url_title(username, loop, proxy_db))
+        loop.run_until_complete(fetch_url_title(username,
+                                                loop,
+                                                proxy_db))
+
 
 if __name__=='__main__':
     interactive()
