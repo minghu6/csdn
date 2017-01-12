@@ -5,14 +5,20 @@ csdn
 
 Usage:
   csdn <username> offline [--outdir=<outdir>] [--proxy_db=<proxy_db>]
+  csdn <username> fetch-page-list [--proxy_db=<proxy_db>]
 
 Options:
   <username>             userid
   -o --outdir=<outdir>   output directory of bake file [default: .]
   --proxy_db=<proxy_db>  point a proxy_db path(use minghu6.tools.proxy_ip
                                                to create.)
+  fetch-page-list        only fetch the url-title page list
 
 """
+import asyncio
+import aiohttp
+import async_timeout
+
 import re
 import os
 from collections import namedtuple
@@ -54,16 +60,33 @@ def htmltitle2path(htmltitle, escape_char_type='url'):
 html_num = None
 url_name_tuple_set = set()
 UrlNameTuple = namedtuple('UrlNameTuple', ['url', 'title'])
-def fetch_url_title(username, proxy_db=None):
+class AsyncIteratorWrapper:
+    def __init__(self, obj):
+        self._it = iter(obj)
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        try:
+            value = next(self._it)
+        except StopIteration:
+            raise StopAsyncIteration
+        return value
+
+async def fetch_url_title(username, loop, proxy_db=None):
+    print("Start Extracting Blog List...")
 
     url="http://blog.csdn.net/%s/article" % username
 
     try:
         response=urlopen(Request(url, headers=headers))
+
     except ConnectionRefusedError:
-        res = proxy_ip.install_proxy_opener(test_url=url, dbname=proxy_db)
-        if res==None:
-            raise Exception('ConnectionRefusedError and There is no proper ip in proxy_db')
+        raise
+        #res=proxy_ip.install_proxy_opener(test_url=url)
+        #if res==None:
+        #    raise Exception('ConnectionRefusedError and There is no proper ip in proxy_db')
 
     html=response.read()
     bsObj = BeautifulSoup(html, 'html.parser')
@@ -98,13 +121,22 @@ def fetch_url_title(username, proxy_db=None):
             url_name_tuple_set.add(url_name_tuple)
             csvwriter.writerow(url_name_tuple) # web io is much slower than local io
 
+    async def fetch(session, url):
+        with async_timeout.timeout(20):
+            async with session.get(url) as response:
+                return await response.read()
 
     add_and_write(bsObj, url_name_tuple_set, csvwriter)
-    for i in range(2, page_num+1):
+    async for i in AsyncIteratorWrapper(range(2, page_num+1)):
         next_page_url = 'http://blog.csdn.net/{0}/article/list/{1}'.format(username, i)
-        response=urlopen(Request(next_page_url, headers=headers))
-        html=response.read()
-        bsObj = BeautifulSoup(html, 'html.parser')
+
+        #response=urlopen(Request(next_page_url, headers=headers))
+
+        async with aiohttp.ClientSession(loop=loop, headers=headers) as session:
+            content = await fetch(session, next_page_url)
+
+        #html = ''.join(list(response.read()))
+        bsObj = BeautifulSoup(content, 'html.parser')
 
         add_and_write(bsObj, url_name_tuple_set, csvwriter)
 
@@ -173,8 +205,10 @@ def generate_index(username='minghu9'):
 
 
 def main(username, proxy_db=None):
+    loop = asyncio.get_event_loop()
     print("Start Extracting Blog List...")
-    fetch_url_title(username, proxy_db)
+    fetch_url_title(username, loop, proxy_db)
+    loop.run_until_complete(fetch_url_title(username, loop, proxy_db))
     print("Start Downloading Blog List...")
     download(username)
     print("Start Generating Index.html...")
@@ -190,9 +224,20 @@ def interactive():
         if arguments['--proxy_db'] != None:
             proxy_db = None
         else:
-            proxy_db = arguments['--proxy-db']
+            proxy_db = arguments['--proxy_db']
 
         main(username=username, proxy_db=proxy_db)
+
+    elif arguments['fetch-page-list']:
+        username = arguments['<username>']
+        if arguments['--proxy_db'] != None:
+            proxy_db = None
+        else:
+            proxy_db = arguments['--proxy_db']
+
+
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(fetch_url_title(username, loop, proxy_db))
 
 if __name__=='__main__':
     interactive()
