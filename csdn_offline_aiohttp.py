@@ -1,28 +1,15 @@
 # -*- coding:utf-8 -*-
 #!/usr/bin/env python3
+
 """
-csdn
-
-Usage:
-  csdn <username> offline [--outdir=<outdir>] [--proxy_db=<proxy_db>]
-  csdn <username> fetch-page-list [--proxy_db=<proxy_db>]
-
-Options:
-  <username>             userid
-  -o --outdir=<outdir>   output directory of bake file [default: .]
-  --proxy_db=<proxy_db>  point a proxy_db path(use minghu6.tools.proxy_ip
-                                               to create.)
-  fetch-page-list        only fetch the url-title page list
 
 """
 import asyncio
 from itertools import repeat
 import re
 import os
-from collections import namedtuple
 import csv
 from urllib.request import Request, urlopen
-
 
 import aiohttp
 import async_timeout
@@ -31,41 +18,11 @@ from urllib.parse import urljoin
 from minghu6.http.request import headers
 from minghu6.text.seq_enh import filter_invalid_char
 from minghu6.internet.proxy_ip import proxy_ip
-from minghu6.algs.decorator import singleton
-from minghu6.text.seq_enh import INVALID_FILE_CHAR_SET
-from docopt import docopt
 
+from .csdn_offline_common import htmltitle2path
+from .csdn_offline_common import URL_LIST_FILE_PATH
+from .csdn_offline_common import UrlNameTuple
 
-
-URL_LIST_FILE_PATH = 'URList-{username:s}.txt'
-
-EscapeCharsetMap = namedtuple('EscapeCharsetMap', ['html', 'url'])
-@singleton
-class EscapeCharsetMapClass:
-
-    def __getitem__(self, char):
-        hex_str = '{0:04x}'.format(ord(char))
-        base_ten_str = '{0:03d}'.format(ord(char))
-        return EscapeCharsetMap(url='%{0:s}'.format(hex_str),
-                                html='&#{0:s}'.format(base_ten_str))
-
-ESCAPED_CHARSET_MAP_DICT = EscapeCharsetMapClass()
-def char_escape(s:str, escape_charset, escape_char_type:str):
-    for each_escape_char in escape_charset:
-        s=s.replace(each_escape_char,
-                    getattr(ESCAPED_CHARSET_MAP_DICT[each_escape_char], escape_char_type))
-
-    return s
-
-def htmltitle2path(htmltitle, escape_char_type='url'):
-
-    path=char_escape(htmltitle, INVALID_FILE_CHAR_SET, escape_char_type)
-    path = ''.join(re.split('\s+', path)) # in case other blank char
-    return path
-
-html_num = None
-url_name_tuple_set = set()
-UrlNameTuple = namedtuple('UrlNameTuple', ['url', 'title'])
 class AsyncIteratorWrapper:
     def __init__(self, obj):
         self._it = iter(obj)
@@ -80,12 +37,15 @@ class AsyncIteratorWrapper:
             raise StopAsyncIteration
         return value
 
+html_num = None
+url_name_tuple_set = set()
+
 async def fetch(session, url):
         with async_timeout.timeout(20):
             async with session.get(url) as response:
                 return await response.read()
 
-async def fetch_url_title(username, loop, proxy_db=None):
+async def fetch_url_title(username, loop, outdir=os.curdir, proxy_db=None):
 
     print("Start Extracting Blog List...")
 
@@ -119,7 +79,7 @@ async def fetch_url_title(username, loop, proxy_db=None):
     if page_num < 1:
         return # zero page error
 
-    file_path=URL_LIST_FILE_PATH.format(username=username)
+    file_path=os.path.join(outdir, URL_LIST_FILE_PATH.format(username=username))
     csvfw=open(file_path, 'w', encoding='utf-8', newline='')
     csvwriter = csv.writer(csvfw, delimiter=',')
     def add_and_write(bsObj, url_name_tuple_set, csvwriter):
@@ -149,9 +109,9 @@ async def fetch_url_title(username, loop, proxy_db=None):
     session.close()
 
 
-async def download(username, loop):
+async def download(username, loop, outdir=os.curdir):
     print("Start Downloading Blog List...")
-    dirname = 'CSDN-'+username
+    dirname = os.path.join('CSDN-'+username)
     if not os.path.exists(dirname):
         os.mkdir(dirname)
     n = html_num
@@ -196,10 +156,10 @@ index_tail_string="""
 </body>
 </html>
 """
-def generate_index(username='minghu9'):
+def generate_index(username, outdir=os.curdir):
     print("Start Generating Index.html...")
-    file_path=URL_LIST_FILE_PATH.format(username=username)
-    f=open(file_path,'r',encoding='utf-8')
+    file_path=os.path.join(outdir, URL_LIST_FILE_PATH.format(username=username))
+    f=open(file_path,'r', encoding='utf-8')
     fout=open('Index_{0}.html'.format(username),'w',encoding='utf-8')
     fout.write(index_head_string)
     fout.write("""<h2>"""+username+"的博客"+"""</h2>\n""")
@@ -215,42 +175,27 @@ def generate_index(username='minghu9'):
     fout.close()
 
 
-def interactive():
-    arguments = docopt(__doc__)
+def offline(username, outdir=os.curdir, proxy_db=None):
+    loop = asyncio.get_event_loop()
+    tasks = [
+        asyncio.ensure_future(fetch_url_title(username,
+                                              loop,
+                                              outdir,
+                                              proxy_db)),
 
-    if arguments['offline']:
-        username = arguments['<username>']
-        #print(arguments['--outdir'], username)
-        if arguments['--proxy_db'] != None:
-            proxy_db = None
-        else:
-            proxy_db = arguments['--proxy_db']
-
-        loop = asyncio.get_event_loop()
-        tasks = [
-            asyncio.ensure_future(fetch_url_title(username,
-                                                  loop,
-                                                  proxy_db)),
-
-            asyncio.ensure_future(download(username,
-                                           loop))
-        ]
-        loop.run_until_complete(asyncio.wait(tasks))
-        generate_index(username)
-
-    elif arguments['fetch-page-list']:
-        username = arguments['<username>']
-        if arguments['--proxy_db'] != None:
-            proxy_db = None
-        else:
-            proxy_db = arguments['--proxy_db']
+        asyncio.ensure_future(download(username,
+                                       loop,
+                                       outdir))
+    ]
+    loop.run_until_complete(asyncio.wait(tasks))
+    generate_index(username)
 
 
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(fetch_url_title(username,
-                                                loop,
-                                                proxy_db))
+def fetch_page_list(username, outdir=os.curdir, proxy_db=None):
 
 
-if __name__=='__main__':
-    interactive()
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(fetch_url_title(username,
+                                            loop,
+                                            outdir,
+                                            proxy_db))
