@@ -5,11 +5,10 @@
 
 """
 import os
-import re
 
 
 def offline(username, outdir=os.curdir, proxy_db=None):
     pass
 
-def fetch_page_list(username, outdir=os.curdir, proxy_db=None):
+def fetch_url_title(username, outdir=os.curdir, proxy_db=None):
     pass

@@ -9,13 +9,13 @@ import re
 
 from selenium import webdriver
 from selenium.common.exceptions import NoSuchElementException
-
 from minghu6.etc.cmd import has_proper_chromedriver, has_proper_geckodriver
 
 class WebDriverNotFoundError(BaseException):pass
 def init_driver():
     if has_proper_chromedriver():
         driver = webdriver.Chrome()
+        #driver = webdriver.Firefox()
     elif has_proper_geckodriver():
         driver = webdriver.Firefox()
     else:
@@ -121,7 +121,7 @@ def logout(driver):
     driver.get('https://passport.csdn.net/account/logout')
 
 
-def bakeup_by_selenium(username, password,
+def backup_by_selenium(username, password,
                        from_datetime='1970-01-01 0:0:0', **kwargs):
 
     driver = init_driver()
