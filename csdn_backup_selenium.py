@@ -10,16 +10,36 @@ import re
 from selenium import webdriver
 from selenium.common.exceptions import NoSuchElementException
 from minghu6.etc.cmd import has_proper_chromedriver, has_proper_geckodriver
+from minghu6.algs.dict import remove_key
+from minghu6.etc.datetime import datetime_fromstr
+
+from csdn_backup_common import read_blog_backup_log, write_blog_backup_log
+from csdn_backup_common import EssayBrief
 
 class WebDriverNotFoundError(BaseException):pass
-def init_driver():
-    if has_proper_chromedriver():
-        driver = webdriver.Chrome()
-        #driver = webdriver.Firefox()
-    elif has_proper_geckodriver():
-        driver = webdriver.Firefox()
+def init_driver(driver_name=None, **kwargs):
+    driver = None
+    if driver_name is None:
+        if has_proper_chromedriver():
+            driver = webdriver.Chrome()
+        elif has_proper_geckodriver():
+            if 'profile_path' in kwargs:
+                driver = webdriver.Firefox(firefox_profile=kwargs['profile_path'])
+            else:
+                driver = webdriver.Firefox()
+
     else:
-        driver = None
+        if driver_name == 'firefox':
+            if has_proper_geckodriver():
+                if 'profile_path' in kwargs:
+                    driver = webdriver.Firefox(firefox_profile=kwargs['profile_path'])
+                else:
+                    driver = webdriver.Firefox()
+
+        elif driver_name == 'chrome':
+            if has_proper_chromedriver():
+                driver = webdriver.Chrome()
+
 
     return driver
 
@@ -51,17 +71,28 @@ def islogin(driver):
         return True
 
 
-def fetch_total_page_etc(driver):
+def fetch_total_page_etc(driver, **kwargs):
     driver.get('http://write.blog.csdn.net/postlist')
-    essay_id_set = set()
+    if driver.name == 'firefox':
+        if 'asyn_time' in kwargs:
+            time.sleep(kwargs['asyn_time'])
+        else:
+            time.sleep(1)
+
+
+    essay_brief_set = set()
     for elem_essay in driver.find_elements_by_class_name('tdleft'):
         try:
             elem_a = elem_essay.find_element_by_tag_name('a')
+            elem_span = elem_essay.find_element_by_tag_name('span')
         except NoSuchElementException:
             pass
         else:
-            #print(elem_a.get_attribute('href'))
-            essay_id_set.add(elem_a.get_attribute('href').split('/')[-1])
+            m = re.search("(?<=（).*(?=）)", elem_span.text)
+            essay_datetime =  datetime_fromstr(m.group(0))
+            essay_id = (elem_a.get_attribute('href').split('/')[-1])
+            essay_brief_set.add(EssayBrief(essay_id, essay_datetime))
+
 
     elem_nav = driver.find_element_by_class_name('page_nav')
     text_total_page_num = elem_nav.find_element_by_tag_name('span').text
@@ -70,29 +101,41 @@ def fetch_total_page_etc(driver):
     total_page_num_str = re.search(pattern_total_page_num, text_total_page_num).group(0)
     total_page_num = int(total_page_num_str)
 
-    return total_page_num, essay_id_set
+    return total_page_num, essay_brief_set
 
-def find_all_essay_id(driver, end_page_num, start_page_num=2, ):
-    essay_id_set = set()
+def find_all_essay_brief(driver, end_page_num, start_page_num=2, ):
+    essay_brief_set = set()
     for page_num_now in range(start_page_num, end_page_num+1):
         driver.get('http://write.blog.csdn.net/postlist/0/0/enabled/{0:d}'.format(page_num_now))
         for elem_essay in driver.find_elements_by_class_name('tdleft'):
             try:
                 elem_a = elem_essay.find_element_by_tag_name('a')
+                elem_span = elem_essay.find_element_by_tag_name('span')
             except NoSuchElementException:
                 pass
             else:
-                #print(elem_a.get_attribute('href'))
-                essay_id_set.add(elem_a.get_attribute('href').split('/')[-1])
+                m = re.search("(?<=（).*(?=）)", elem_span.text)
+                essay_datetime =  datetime_fromstr(m.group(0))
+                essay_id = (elem_a.get_attribute('href').split('/')[-1])
+                essay_brief_set.add(EssayBrief(essay_id, essay_datetime))
 
-    return essay_id_set
+    return essay_brief_set
 
-def download_md(driver, essay_id_set, render_wait_time=0.5):
+def download_md(driver, essay_brief_set, render_wait_time=0.5, **kwargs):
     #刷新恢复正常
     driver.refresh()
     first_download = True
-    for essay_id in essay_id_set:
-        driver.get('http://write.blog.csdn.net/mdeditor#!postId={0}'.format(essay_id))
+    for essay_brief in essay_brief_set:
+        driver.get('http://write.blog.csdn.net/mdeditor#!postId={0}'.format(essay_brief.id))
+        if first_download:
+            time.sleep(render_wait_time) # wait render
+
+        if driver.name == 'firefox':
+            if 'asyn_time' in kwargs:
+                time.sleep(kwargs['asyn_time'])
+            else:
+                time.sleep(1)
+
         try:
             elem_step0 = driver.find_element_by_id('step-0')
         except NoSuchElementException:
@@ -124,17 +167,34 @@ def logout(driver):
 def backup_by_selenium(username, password,
                        from_datetime='1970-01-01 0:0:0', **kwargs):
 
-    driver = init_driver()
+    driver_name=kwargs.get('driver_name')
+    kwargs = remove_key(kwargs, 'driver_name')
+    driver = init_driver(driver_name=driver_name, **kwargs)
+
     if driver is None:
         raise WebDriverNotFoundError
 
     login(driver, username, password)
-    total_page_num, essay_id_set_page1 = fetch_total_page_etc(driver)
-    essay_id_set_page_other = find_all_essay_id(driver, total_page_num)
-    essay_id_set = essay_id_set_page1 | essay_id_set_page_other
+    if driver.name == 'firefox':
+        if 'asyn_time' in kwargs:
+            asyn_time = kwargs['asyn_time']
+            time.sleep(asyn_time)
+        else:
+            time.sleep(1)
+
+
+    total_page_num, essay_brief_set_page1 = fetch_total_page_etc(driver, **kwargs)
+    essay_brief_set_other = find_all_essay_brief(driver, total_page_num)
+    essay_brief_set = essay_brief_set_page1 | essay_brief_set_other
+
+    last_blog_backup_datetime = read_blog_backup_log()
+    essay_brief_set = filter(lambda item:item.datetime>last_blog_backup_datetime,
+                             essay_brief_set)
 
     if 'render_wait_time' in kwargs:
-        download_md(driver, essay_id_set,
-                    render_wait_time=kwargs['render_wait_time'])
+        download_md(driver, essay_brief_set,
+                    render_wait_time=kwargs['render_wait_time'], **kwargs)
     else:
-        download_md(driver, essay_id_set, )
+        download_md(driver, essay_brief_set, **kwargs)
+
+    write_blog_backup_log()
