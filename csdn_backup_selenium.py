@@ -12,6 +12,7 @@ from selenium.common.exceptions import NoSuchElementException
 from minghu6.etc.cmd import has_proper_chromedriver, has_proper_geckodriver
 from minghu6.algs.dict import remove_key
 from minghu6.etc.datetime import datetime_fromstr
+from minghu6.etc.logger import SmallLogger
 
 from csdn_backup_common import read_blog_backup_log, write_blog_backup_log
 from csdn_backup_common import EssayBrief
@@ -122,54 +123,72 @@ def find_all_essay_brief(driver, end_page_num, start_page_num=2, ):
     return essay_brief_set
 
 def download_md(driver, essay_brief_set, render_wait_time=0.5, **kwargs):
+    essay_brief_set = set(essay_brief_set) #set(filter) then filter empty
+    failed_set = set(essay_brief_set)
+    small_logger = SmallLogger()
     #刷新恢复正常
     driver.refresh()
     first_download = True
+    #print(essay_brief_set)
     for essay_brief in essay_brief_set:
-        driver.get('http://write.blog.csdn.net/mdeditor#!postId={0}'.format(essay_brief.id))
-        if first_download:
-            time.sleep(render_wait_time) # wait render
-
-        if driver.name == 'firefox':
-            if 'asyn_time' in kwargs:
-                time.sleep(kwargs['asyn_time'])
-            else:
-                time.sleep(1)
 
         try:
-            elem_step0 = driver.find_element_by_id('step-0')
-        except NoSuchElementException:
-            pass
-        else:
-            btn_0_cancel = elem_step0.find_elements_by_css_selector(".btn.btn-default")[0]
-            btn_0_cancel.click()
-            time.sleep(1)
+            driver.get('http://write.blog.csdn.net/mdeditor#!postId={0}'.format(essay_brief.id))
+            if first_download:
+                time.sleep(render_wait_time) # wait render
 
-        elem_a_export_doc = driver.find_elements_by_css_selector('.btn.btn-success.btn-export')[0]
-        elem_a_export_doc.click()
-        time.sleep(render_wait_time) # wait web page rending
-        download_md = driver.find_elements_by_class_name('action-download-md')[0]
-        download_md.click()
-        if first_download:
-            first_download = False
             if driver.name == 'firefox':
-                input('set txt file download config, press any key to continue')
+                if 'asyn_time' in kwargs:
+                    time.sleep(kwargs['asyn_time'])
+                else:
+                    time.sleep(1)
 
+            try:
+                elem_step0 = driver.find_element_by_id('step-0')
+            except NoSuchElementException:
+                pass
+            else:
+                btn_0_cancel = elem_step0.find_elements_by_css_selector(".btn.btn-default")[0]
+                btn_0_cancel.click()
+                time.sleep(1)
 
-        #刷新恢复正常
-        driver.refresh()
+            elem_a_export_doc = driver.find_elements_by_css_selector('.btn.btn-success.btn-export')[0]
+            elem_a_export_doc.click()
+            time.sleep(render_wait_time) # wait web page rending
+            download_md = driver.find_elements_by_class_name('action-download-md')[0]
+            download_md.click()
+            if first_download:
+                first_download = False
+                if driver.name == 'firefox':
+                    input('set txt file download config, press any key to continue')
+
+        except Exception as ex:
+
+            #print(ex)
+            #traceback.print_stack()
+            #return failed_set
+            raise
+
+        else:
+            failed_set.remove(essay_brief)
+            write_blog_backup_log(small_logger, failed_set=failed_set)
+            #刷新恢复正常
+            driver.refresh()
+
+    return failed_set
+
 
 def logout(driver):
     #退出
     driver.get('https://passport.csdn.net/account/logout')
 
 
-def backup_by_selenium(username, password,
-                       from_datetime='1970-01-01 0:0:0', **kwargs):
+def backup_by_selenium(username, password, **kwargs):
 
     driver_name=kwargs.get('driver_name')
     kwargs = remove_key(kwargs, 'driver_name')
     driver = init_driver(driver_name=driver_name, **kwargs)
+    small_logger = read_blog_backup_log()
 
     if driver is None:
         raise WebDriverNotFoundError
@@ -185,16 +204,19 @@ def backup_by_selenium(username, password,
 
     total_page_num, essay_brief_set_page1 = fetch_total_page_etc(driver, **kwargs)
     essay_brief_set_other = find_all_essay_brief(driver, total_page_num)
-    essay_brief_set = essay_brief_set_page1 | essay_brief_set_other
 
-    last_blog_backup_datetime = read_blog_backup_log()
+    essay_brief_set = essay_brief_set_page1 | essay_brief_set_other
+    last_blog_backup_datetime = small_logger['last_time'][0]
     essay_brief_set = filter(lambda item:item.datetime>last_blog_backup_datetime,
-                             essay_brief_set)
+                            essay_brief_set)
+
+    essay_brief_set = set(essay_brief_set)
+    essay_brief_set |= set(small_logger['failed'])
+
+    #print(essay_brief_set)
 
     if 'render_wait_time' in kwargs:
         download_md(driver, essay_brief_set,
-                    render_wait_time=kwargs['render_wait_time'], **kwargs)
+                                 render_wait_time=kwargs['render_wait_time'], **kwargs)
     else:
         download_md(driver, essay_brief_set, **kwargs)
-
-    write_blog_backup_log()
