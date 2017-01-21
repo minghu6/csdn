@@ -5,23 +5,22 @@
 
 """
 import asyncio
-from itertools import repeat
-import re
-import os
 import csv
+import os
+import re
+from itertools import repeat
+from urllib.parse import urljoin
 from urllib.request import Request, urlopen
 
 import aiohttp
 import async_timeout
 from bs4 import BeautifulSoup
-from urllib.parse import urljoin
+from csdn_offline.csdn_offline_common import URL_LIST_FILE_PATH
+from csdn_offline.csdn_offline_common import UrlNameTuple
+from csdn_offline.csdn_offline_common import htmltitle2path
 from minghu6.http.request import headers
 from minghu6.text.seq_enh import filter_invalid_char
-from minghu6.internet.proxy_ip import proxy_ip
 
-from csdn_offline_common import htmltitle2path
-from csdn_offline_common import URL_LIST_FILE_PATH
-from csdn_offline_common import UrlNameTuple
 
 class AsyncIteratorWrapper:
     def __init__(self, obj):

@@ -5,7 +5,7 @@ csdn
 
 Usage:
   csdn <username> offline [--outdir=<outdir>] [--proxy_db=<proxy_db>]
-  csdn <username> fetch-url-title [--proxy_db=<proxy_db>]
+  csdn <username> fetch-page-list [--proxy_db=<proxy_db>]
   csdn <username> backup <password> [--render-time=<render_time>] [--firefox]
                                     [--asyn-time=<asyn_time>] [--load-profile=<profile-path>]
 
@@ -24,11 +24,11 @@ Options:
 """
 from docopt import docopt
 
-from csdn_offline import offline, fetch_url_title
-from csdn_backup  import blog_backup
+from csdn_offline.csdn_offline import offline, fetch_page_list
+from csdn_backup.csdn_backup  import blog_backup
 
 
-
+__version__ = '1.0.0'
 def interactive():
     arguments = docopt(__doc__)
 
@@ -41,13 +41,13 @@ def interactive():
 
         offline(username=username, outdir=outdir, proxy_db=proxy_db)
 
-    elif arguments['fetch-url-title']:
+    elif arguments['fetch-page-list']:
         username = arguments['<username>']
         #print(arguments['--outdir'], username)
         proxy_db = arguments['--proxy_db']
 
         outdir = arguments['--outdir']
-        fetch_url_title(username, outdir, proxy_db)
+        fetch_page_list(username, outdir, proxy_db)
 
     elif arguments['backup']:
         username = arguments['<username>']

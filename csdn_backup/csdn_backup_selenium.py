@@ -4,18 +4,19 @@
 """
 
 """
-import time
 import re
+import time
+import http.cookiejar
 
-from selenium import webdriver
-from selenium.common.exceptions import NoSuchElementException
-from minghu6.etc.cmd import has_proper_chromedriver, has_proper_geckodriver
+from csdn_backup.csdn_backup_common import EssayBrief
+from csdn_backup.csdn_backup_common import read_blog_backup_log, write_blog_backup_log
 from minghu6.algs.dict import remove_key
+from minghu6.etc.cmd import has_proper_chromedriver, has_proper_geckodriver
 from minghu6.etc.datetime import datetime_fromstr
 from minghu6.etc.logger import SmallLogger
+from selenium import webdriver
+from selenium.common.exceptions import NoSuchElementException
 
-from csdn_backup_common import read_blog_backup_log, write_blog_backup_log
-from csdn_backup_common import EssayBrief
 
 class WebDriverNotFoundError(BaseException):pass
 def init_driver(driver_name=None, **kwargs):
@@ -58,6 +59,22 @@ def login(driver, username, password):
     elem_login_btn = driver.find_element_by_class_name('logging')
 
     elem_login_btn.submit()
+
+def construct_selenium_cookie(cookie:http.cookiejar.Cookie, **kwargs):
+    cookie_dict = {}
+    cookie_dict['domain'] = cookie.domain
+    cookie_dict['expiry'] = cookie.expires
+    if 'httpOnly' in kwargs:
+        cookie_dict['httpOnly'] = kwargs['httpOnly']
+    else:
+        cookie_dict['httpOnly'] = False
+
+    cookie_dict['name'] = cookie.name
+    cookie_dict['path'] = cookie.path
+    cookie_dict['secure'] = cookie.secure
+    cookie_dict['value'] = cookie.value
+
+    return cookie_dict
 
 
 def islogin(driver):
@@ -152,7 +169,12 @@ def download_md(driver, essay_brief_set, render_wait_time=0.5, **kwargs):
                 btn_0_cancel.click()
                 time.sleep(1)
 
-            elem_a_export_doc = driver.find_elements_by_css_selector('.btn.btn-success.btn-export')[0]
+            try:
+                elem_a_export_doc = driver.find_elements_by_css_selector('.btn.btn-success.btn-export')[0]
+            except IndexError:
+                time.sleep(1)
+                elem_a_export_doc = driver.find_elements_by_css_selector('.btn.btn-success.btn-export')[0]
+
             elem_a_export_doc.click()
             time.sleep(render_wait_time) # wait web page rending
             download_md = driver.find_elements_by_class_name('action-download-md')[0]
@@ -194,6 +216,7 @@ def backup_by_selenium(username, password, **kwargs):
         raise WebDriverNotFoundError
 
     login(driver, username, password)
+
     if driver.name == 'firefox':
         if 'asyn_time' in kwargs:
             asyn_time = kwargs['asyn_time']
