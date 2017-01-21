@@ -22,13 +22,11 @@ Options:
   --load-profile=<profile-path>  profile path (for geckodriver)
 
 """
+from .csdn_offline.csdn_offline import offline, fetch_page_list
+from .csdn_backup.csdn_backup  import blog_backup
 from docopt import docopt
 
-from csdn_offline.csdn_offline import offline, fetch_page_list
-from csdn_backup.csdn_backup  import blog_backup
 
-
-__version__ = '1.0.0'
 def interactive():
     arguments = docopt(__doc__)
 

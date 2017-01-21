@@ -15,7 +15,7 @@ setup(
 	install_requires = required,
 	packages = find_packages(),
 	entry_points = {
-        'console_scripts' : ['csdn=csdn:interactive',
+        'console_scripts' : ['csdn=csdn.csdn:interactive',
                              ],
     },
 	include_package_data = True,

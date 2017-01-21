@@ -5,7 +5,6 @@
 
 """
 import os
-import asyncio
 
 def offline(username, outdir=os.curdir, proxy_db=None):
     from .csdn_offline_aiohttp import offline as offline_aiohttp

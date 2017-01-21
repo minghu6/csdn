@@ -15,9 +15,9 @@ from urllib.request import Request, urlopen
 import aiohttp
 import async_timeout
 from bs4 import BeautifulSoup
-from csdn_offline.csdn_offline_common import URL_LIST_FILE_PATH
-from csdn_offline.csdn_offline_common import UrlNameTuple
-from csdn_offline.csdn_offline_common import htmltitle2path
+from .csdn_offline_common import URL_LIST_FILE_PATH
+from .csdn_offline_common import UrlNameTuple
+from .csdn_offline_common import htmltitle2path
 from minghu6.http.request import headers
 from minghu6.text.seq_enh import filter_invalid_char
 
@@ -167,7 +167,7 @@ def generate_index(username, outdir=os.curdir):
         m=re.search('(http.+[0-9]{7,}),(.+)',line)
         title=m.group(2)
         #print(title)
-        fout.write("""<li><a href=\""""+'./CSDN-'+username+'/'+title+".html"+"""\">"""+title+"""</a></li>\n""")
+        fout.write("""<li><a href=\""""+'./CSDN-'+username+'/'+htmltitle2path(title)+".html"+"""\">"""+title+"""</a></li>\n""")
     fout.write("""</ol>""")
     fout.write(index_tail_string)
     f.close()

@@ -4,12 +4,12 @@
 """
 
 """
+import http.cookiejar
 import re
 import time
-import http.cookiejar
 
-from csdn_backup.csdn_backup_common import EssayBrief
-from csdn_backup.csdn_backup_common import read_blog_backup_log, write_blog_backup_log
+from .csdn_backup_common import EssayBrief
+from .csdn_backup_common import read_blog_backup_log, write_blog_backup_log
 from minghu6.algs.dict import remove_key
 from minghu6.etc.cmd import has_proper_chromedriver, has_proper_geckodriver
 from minghu6.etc.datetime import datetime_fromstr

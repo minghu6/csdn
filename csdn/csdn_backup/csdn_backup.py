@@ -7,7 +7,7 @@
 
 def blog_backup(username, password, **kwargs):
 
-    from csdn_backup.csdn_backup_selenium import backup_by_selenium
+    from csdn.csdn_backup.csdn_backup_selenium import backup_by_selenium
     backup_by_selenium(username, password, **kwargs)
 
 
