@@ -17,7 +17,6 @@ import async_timeout
 from bs4 import BeautifulSoup
 from .csdn_offline_common import URL_LIST_FILE_PATH
 from .csdn_offline_common import UrlNameTuple
-from .csdn_offline_common import htmltitle2path
 from minghu6.http.request import headers
 from minghu6.text.seq_enh import filter_invalid_char
 
@@ -125,7 +124,7 @@ async def download(username, loop, outdir=os.curdir):
         except KeyError:
             pass
         else:
-            path = os.path.join(dirname, htmltitle2path(url_name.title)+'.html')
+            path = os.path.join(dirname, filter_invalid_char(url_name.title)+'.html')
             content = await fetch(session, url_name.url)
 
             with open(path, 'wb') as fw:
@@ -167,7 +166,7 @@ def generate_index(username, outdir=os.curdir):
         m=re.search('(http.+[0-9]{7,}),(.+)',line)
         title=m.group(2)
         #print(title)
-        fout.write("""<li><a href=\""""+'./CSDN-'+username+'/'+htmltitle2path(title)+".html"+"""\">"""+title+"""</a></li>\n""")
+        fout.write("""<li><a href=\""""+'./CSDN-'+username+'/'+filter_invalid_char(title)+".html"+"""\">"""+title+"""</a></li>\n""")
     fout.write("""</ol>""")
     fout.write(index_tail_string)
     f.close()

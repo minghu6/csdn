@@ -11,38 +11,46 @@ import time
 from .csdn_backup_common import EssayBrief
 from .csdn_backup_common import read_blog_backup_log, write_blog_backup_log
 from minghu6.algs.dict import remove_key
-from minghu6.etc.cmd import has_proper_chromedriver, has_proper_geckodriver
+from minghu6.etc.version import islinux
 from minghu6.etc.datetime import datetime_fromstr
 from minghu6.etc.logger import SmallLogger
 from selenium import webdriver
-from selenium.common.exceptions import NoSuchElementException
+from selenium.common.exceptions import NoSuchElementException, ElementNotVisibleException
 
 
 class WebDriverNotFoundError(BaseException):pass
 def init_driver(driver_name=None, **kwargs):
     driver = None
-    if driver_name is None:
-        if has_proper_chromedriver():
-            driver = webdriver.Chrome()
-        elif has_proper_geckodriver():
-            if 'profile_path' in kwargs:
-                driver = webdriver.Firefox(firefox_profile=kwargs['profile_path'])
-            else:
-                driver = webdriver.Firefox()
+    def init_chrome(**kwargs):
+        other_kwargs = {}
+        if 'driver_path' in kwargs:
+            driver_path = kwargs['driver_path']
+            other_kwargs['executable_path'] = driver_path
 
+        driver = webdriver.Chrome(**other_kwargs)
+        return driver
+
+    def init_firefox(**kwargs):
+        other_kwargs = {}
+        if 'profile_path' in kwargs:
+            firefox_profile = kwargs['profile_path']
+            other_kwargs['firefox_profile'] = firefox_profile
+        if 'driver_path' in kwargs:
+            driver_path = kwargs['driver_path']
+            other_kwargs['executable_path'] = driver_path
+
+        driver = webdriver.Firefox(**other_kwargs)
+        return driver
+
+    if driver_name is None:
+        driver = init_chrome(**kwargs)
+        if driver is None:
+            driver = init_firefox(**kwargs)
     else:
         if driver_name == 'firefox':
-            if has_proper_geckodriver():
-                if 'profile_path' in kwargs:
-                    driver = webdriver.Firefox(firefox_profile=kwargs['profile_path'])
-                else:
-                    driver = webdriver.Firefox()
-
+            driver = init_firefox()
         elif driver_name == 'chrome':
-            if has_proper_chromedriver():
-                driver = webdriver.Chrome()
-
-
+            driver = init_chrome()
     return driver
 
 def login(driver, username, password):
@@ -76,7 +84,6 @@ def construct_selenium_cookie(cookie:http.cookiejar.Cookie, **kwargs):
 
     return cookie_dict
 
-
 def islogin(driver):
 
     driver.get('http://www.csdn.net/')
@@ -87,7 +94,6 @@ def islogin(driver):
         return False
     else:
         return True
-
 
 def fetch_total_page_etc(driver, **kwargs):
     driver.get('http://write.blog.csdn.net/postlist')
@@ -139,7 +145,7 @@ def find_all_essay_brief(driver, end_page_num, start_page_num=2, ):
 
     return essay_brief_set
 
-def download_md(driver, essay_brief_set, render_wait_time=0.5, **kwargs):
+def download_md(driver, essay_brief_set, render_time=1, **kwargs):
     essay_brief_set = set(essay_brief_set) #set(filter) then filter empty
     failed_set = set(essay_brief_set)
     small_logger = SmallLogger()
@@ -152,7 +158,7 @@ def download_md(driver, essay_brief_set, render_wait_time=0.5, **kwargs):
         try:
             driver.get('http://write.blog.csdn.net/mdeditor#!postId={0}'.format(essay_brief.id))
             if first_download:
-                time.sleep(render_wait_time) # wait render
+                time.sleep(render_time) # wait render
 
             if driver.name == 'firefox':
                 if 'asyn_time' in kwargs:
@@ -167,16 +173,21 @@ def download_md(driver, essay_brief_set, render_wait_time=0.5, **kwargs):
             else:
                 btn_0_cancel = elem_step0.find_elements_by_css_selector(".btn.btn-default")[0]
                 btn_0_cancel.click()
-                time.sleep(1)
+                time.sleep(render_time)
 
             try:
                 elem_a_export_doc = driver.find_elements_by_css_selector('.btn.btn-success.btn-export')[0]
             except IndexError:
-                time.sleep(1)
+                time.sleep(render_time)
                 elem_a_export_doc = driver.find_elements_by_css_selector('.btn.btn-success.btn-export')[0]
 
-            elem_a_export_doc.click()
-            time.sleep(render_wait_time) # wait web page rending
+            try:
+                elem_a_export_doc.click()
+            except ElementNotVisibleException:
+                input('please Zoom the Browser Window to show the export-doc-btn\npress anykey to continue')
+                elem_a_export_doc.click()
+
+            time.sleep(render_time * 0.5) # wait web page rending
             download_md = driver.find_elements_by_class_name('action-download-md')[0]
             download_md.click()
             if first_download:
@@ -198,7 +209,6 @@ def download_md(driver, essay_brief_set, render_wait_time=0.5, **kwargs):
             driver.refresh()
 
     return failed_set
-
 
 def logout(driver):
     #退出
@@ -230,16 +240,13 @@ def backup_by_selenium(username, password, **kwargs):
 
     essay_brief_set = essay_brief_set_page1 | essay_brief_set_other
     last_blog_backup_datetime = small_logger['last_time'][0]
-    essay_brief_set = filter(lambda item:item.datetime>last_blog_backup_datetime,
-                            essay_brief_set)
+    if kwargs.get('backup_all', False):
+        pass
+    else:
+        essay_brief_set = filter(lambda item:item.datetime>last_blog_backup_datetime,
+                                 essay_brief_set)
 
     essay_brief_set = set(essay_brief_set)
     essay_brief_set |= set(small_logger['failed'])
 
-    #print(essay_brief_set)
-
-    if 'render_wait_time' in kwargs:
-        download_md(driver, essay_brief_set,
-                                 render_wait_time=kwargs['render_wait_time'], **kwargs)
-    else:
-        download_md(driver, essay_brief_set, **kwargs)
+    download_md(driver, essay_brief_set, **kwargs)

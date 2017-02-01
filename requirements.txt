@@ -3,5 +3,5 @@ requests
 docopt
 selenium
 aiohttp
-minghu6 == 1.4.2
+minghu6 == 1.4.4
 

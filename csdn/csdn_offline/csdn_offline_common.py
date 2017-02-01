@@ -7,7 +7,7 @@
 from collections import namedtuple
 
 from minghu6.internet.proxy_ip import proxy_ip
-from minghu6.internet.char_escape import htmltitle2path
+from minghu6.text.seq_enh import filter_invalid_char
 
 
 URL_LIST_FILE_PATH = 'URList-{username:s}.txt'

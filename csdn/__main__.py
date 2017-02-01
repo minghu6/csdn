@@ -4,4 +4,7 @@
 """
 
 """
-__version__ = '1.0.1'
+from .csdn import cli
+
+if __name__ == '__main__':
+    cli()

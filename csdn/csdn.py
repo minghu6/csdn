@@ -8,6 +8,7 @@ Usage:
   csdn <username> fetch-page-list [--proxy_db=<proxy_db>]
   csdn <username> backup <password> [--render-time=<render_time>] [--firefox]
                                     [--asyn-time=<asyn_time>] [--load-profile=<profile-path>]
+                                    [--force-all] [--driver-path=<driver-path>]
 
 Options:
   <username>                     userid
@@ -19,7 +20,9 @@ Options:
   --firefox                      using geckodriver
   --asyn_time=<asyn_time>        some driver like geckodriver return before page loaderd completely,
                                  so, we need wait some time [default: 1] (s).
-  --load-profile=<profile-path>  profile path (for geckodriver)
+  --load-profile=<profile-path>  profile path (for geckodriver).
+  --force-all                    force to backup all the blog instead of incremental backup.
+  --driver-path=<driver-path>    set webdriver path such as /usr/bin/chromedriver
 
 """
 from .csdn_offline.csdn_offline import offline, fetch_page_list
@@ -27,7 +30,7 @@ from .csdn_backup.csdn_backup  import blog_backup
 from docopt import docopt
 
 
-def interactive():
+def cli():
     arguments = docopt(__doc__)
 
     if arguments['offline']:
@@ -68,10 +71,18 @@ def interactive():
             profile_path = arguments['--load-profile']
             other_kwargs['profile_path'] = profile_path
 
+        if arguments['--force-all']:
+            backup_all = True
+            other_kwargs['backup_all'] = backup_all
+
+        if arguments['--driver-path']:
+            driver_path = arguments['--driver-path']
+            other_kwargs['driver_path'] = driver_path
+
         blog_backup(username, password, **other_kwargs)
 
 
 
 
 if __name__=='__main__':
-    interactive()
+    cli()
