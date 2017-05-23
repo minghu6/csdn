@@ -7,7 +7,7 @@ Usage:
   csdn <username> offline [--outdir=<outdir>] [--proxy_db=<proxy_db>]
   csdn <username> fetch-page-list [--proxy_db=<proxy_db>]
   csdn <username> backup <password> [--render-time=<render_time>] [--firefox]
-                                    [--asyn-time=<asyn_time>] [--load-profile=<profile-path>]
+                                    [--asyn-time=<asyn_time>] [--outdir=<outdir>]
                                     [--force-all] [--driver-path=<driver-path>]
 
 Options:
@@ -20,7 +20,6 @@ Options:
   --firefox                      using geckodriver
   --asyn_time=<asyn_time>        some driver like geckodriver return before page loaderd completely,
                                  so, we need wait some time [default: 1] (s).
-  --load-profile=<profile-path>  profile path (for geckodriver).
   --force-all                    force to backup all the blog instead of incremental backup.
   --driver-path=<driver-path>    set webdriver path such as /usr/bin/chromedriver
 
@@ -55,6 +54,8 @@ def cli():
         password = arguments['<password>']
 
         other_kwargs = {}
+        outdir = arguments['--outdir']
+        other_kwargs['outdir'] = outdir
         if arguments['--render-time']:
             render_time = float(arguments['--render-time'])
             other_kwargs['render_time'] = render_time
@@ -66,10 +67,6 @@ def cli():
         if arguments['--asyn-time']:
             asyn_time = float(arguments['--asyn-time'])
             other_kwargs['asyn_time'] = asyn_time
-
-        if arguments['--load-profile']:
-            profile_path = arguments['--load-profile']
-            other_kwargs['profile_path'] = profile_path
 
         if arguments['--force-all']:
             backup_all = True
